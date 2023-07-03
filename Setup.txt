@@ -1,0 +1,13 @@
+[ ] 1.- Create the folder               
+[ ] 2.- Create the source code file
+
+Configure VS to use c++
+[ ] 3.- Go to view tab --> command palette (ctrl + shit + p)
+    the type c++ and select "edit cofiguration UI"
+[ ] 4.- On the compiler section select "option g++" from the dropdown
+[ ] 5.- On the C++ standard selec c++17 and then (ctrl + s) --> a vscode folder MUST be created automatically with a json file
+[ ] 6.- Go to terminal --> Configure default build task --> select g++ option
+[ ] 7.- task json file will be opened automatically
+                "-Wall",
+				"-std=c++17",
+				"${fileDirname}\\*.cpp",
