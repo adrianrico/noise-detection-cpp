@@ -616,114 +616,97 @@ void readFiles()
 
 
 
-/*Simulate call fillPyroDataGeneral each 192ms...*/
-void requestDataFromL1()
+/**
+ * @brief 
+ * [ Simulate call fillPyroDataGeneral each 192ms ]
+ * 
+ * @param dtemp
+ * @param pyroPlant_getMinValue PYRO min physical measurement device range --> pyroPlant.getMinValue() (HT 220°c - 1600°c) 
+ */
+void requestDataFromL1(double dTemp, double pyroPlant_getMinValue)
 {   
-    double dTemp                    {0.0};
-    double pyroPlant_getMinValue    {220}; //Simulate pyro min device range --> pyroPlant.getMinValue()
+    //Own internal algorithm variables
+    static double prevDtemp         {0};
+
     double stabilityFactor          {5};
-    double prevDtemp                {0};
 
-    size_t consecutiveNoiseCounter  {0};
-    size_t checkToleranceCounter    {0};
+    static size_t consecutiveNoiseCounter  {0};
+    static size_t currentStripMeasurements {0};
 
-    bool stableFlag                 {true};
-    bool isRolling                  {false};
-
-    do
+    static bool stableFlag                 {true};
+    
+    /*
+    - Validate if the measurement is below the device physical measurement range...
+    - In case that the range is not supplied and clamped to 0 added the second validation...
+    */
+    if (dTemp < pyroPlant_getMinValue || dTemp == 0)
     {
-        //Simulate call a reading from L1...
-        cout<<left<<setfill('-')<<setw(41)<<"-"<<endl; //REMOVE...!
-        cout<<"[-1                   ] --> END"<<endl;
-        cout<<"[ENTER SIMULATED VALUE] --> ";
-        cin>>dTemp;
-        cout<<left<<setfill('-')<<setw(41)<<"-"<<endl; //REMOVE...!
-
-        if (dTemp < pyroPlant_getMinValue && isRolling == false)
+        cout<<endl<<"NO STRIP DETECTED\t Measurement below device low range or clamped to 0..."<<endl;
+        cout<<"dTemp (Actual Value):\t "<<dTemp<<endl;
+        cout<<endl;
+    
+        prevDtemp                   = 0;
+        consecutiveNoiseCounter     = 0;
+        stableFlag                  = true;
+         
+    }else
+    {   
+       
+        /*
+        - Find the first valid measurement above device measurement range...
+        - Store value in a variable to start camparisons (static variable)...               
+        */
+        if (dTemp > pyroPlant_getMinValue && dTemp > 0 && prevDtemp == 0)
         {
-            cout<<endl<<"NO STRIP DETECTED\t Measurement below device low range..."<<endl;
-            cout<<"dTemp (Actual Value):\t "<<dTemp<<endl;
-            cout<<endl;
-          
-            prevDtemp = 0;
-            consecutiveNoiseCounter = 0;
-            stableFlag = true;
-            
+            cout<<endl<<"STRIP FOUND!\t First valid measurement stored..."<<endl;
+            cout<<"dtemp:\t"<<dTemp<<"\t prevDtemp:\t"<<prevDtemp<<endl<<endl;
+             
+            prevDtemp = dTemp;
+             
         }else
-        {   
-
-            if (dTemp < pyroPlant_getMinValue && isRolling == true)
+        {
+            //start checking from the actual measurement vs previous...
+            if (prevDtemp !=0)
             {
-                /* comparison  */
-                checkToleranceCounter++;
-
-                checkToleranceCounter > 3 ? isRolling = false : isRolling = true;
-            }
-            
-            /*
-            - Find the first measurement above device lor range...
-            - Store value in a variable to start camparisons...               
-            */
-            if (prevDtemp == 0)
-            {
-
-                cout<<endl<<"STRIP FOUND!\t First valid measurement stored..."<<endl;
-                cout<<"dtemp:\t"<<dTemp<<"\t prevDtemp:\t"<<prevDtemp<<endl<<endl;
-                
-                prevDtemp = dTemp;
-                isRolling = true;
-                
-            }else
-            {
-                if (prevDtemp !=0)
+                //First unstability find...
+                if (abs(dTemp - prevDtemp) > stabilityFactor && stableFlag == true)
                 {
-                    //First unstability find...
-                    if (abs(dTemp - prevDtemp) > stabilityFactor && stableFlag == true)
+                    cout<<endl<<"Unstability found...!"<<endl;
+                    cout<<"dtemp:\t\t"<<dTemp<<"\t prevDtemp:\t"<<prevDtemp<<endl;
+                    cout<<"Tolerance jump:\t"<<abs(dTemp - prevDtemp)<<endl<<endl;
+                    
+                    stableFlag = false;
+                    consecutiveNoiseCounter ++;
+                    prevDtemp = dTemp;
+                
+                }else
+                {
+                    //Check if there is a consecutive noise...
+                    if (abs(dTemp - prevDtemp) > stabilityFactor && stableFlag == false)
                     {
-                        cout<<endl<<"Unstability found..."<<endl;
+                        consecutiveNoiseCounter >= 2 ?
+                        cout<<endl<<"Still not stable... Warning! Possible water / surface issues..."<<endl
+                        :
+                        cout<<endl<<"Still not stable...!"<<endl;  
                         cout<<"dtemp:\t\t"<<dTemp<<"\t prevDtemp:\t"<<prevDtemp<<endl;
                         cout<<"Tolerance jump:\t"<<abs(dTemp - prevDtemp)<<endl<<endl;
-
-                        stableFlag = false;
-                        consecutiveNoiseCounter ++;
+                        consecutiveNoiseCounter++;
                         prevDtemp = dTemp;
-                    
                     }else
-                    {
-                        //Check if there is a consecutive noise...
-                        if (abs(dTemp - prevDtemp) > stabilityFactor && stableFlag == false)
-                        {
-                            consecutiveNoiseCounter >= 2 ?
-                            cout<<endl<<"Still not stable... Warning! Possible water / surface issues..."<<endl
-                            :
-                            cout<<endl<<"Still not stable..."<<endl;  
-
-                            cout<<"dtemp:\t\t"<<dTemp<<"\t prevDtemp:\t"<<prevDtemp<<endl;
-                            cout<<"Tolerance jump:\t"<<abs(dTemp - prevDtemp)<<endl<<endl;
-
-                            consecutiveNoiseCounter++;
-                            prevDtemp = dTemp;
-                        }else
-                        {
-                            //Stability recovered...
-                            cout<<endl<<"Stability ok..."<<endl<<endl;
-                            cout<<"dtemp:\t\t"<<dTemp<<"\t prevDtemp:\t"<<prevDtemp<<endl;
-                            cout<<"Tolerance jump:\t"<<abs(dTemp - prevDtemp)<<endl<<endl;
-
-                            prevDtemp = dTemp;
-                            stableFlag = true;
-                            consecutiveNoiseCounter = 0;
-                          
-                        }
+                    {    
+                        //Stability recovered...
+                        cout<<endl<<"Stability ok..."<<endl<<endl;
+                        cout<<"dtemp:\t\t"<<dTemp<<"\t prevDtemp:\t"<<prevDtemp<<endl;
+                        cout<<"Tolerance jump:\t"<<abs(dTemp - prevDtemp)<<endl<<endl;
+                        prevDtemp = dTemp;
+                        stableFlag = true;
+                        consecutiveNoiseCounter = 0;
+                      
                     }
-
-                    
                 }
             }
-
-        } 
-
-    }while (dTemp != -1);
+        }
+    } 
 }
 
 
@@ -739,7 +722,7 @@ int main()
 {
     cout<<left<<setfill('*')<<setw(100)<<"*"<<endl<<endl;
 	cout<<right<<setfill(' ')<<setw(0)<<"[** WATER DETECTION ALGORITHM STARTED **]"<<endl;
-	cout<<endl<<left<<setfill('*')<<setw(100)<<"*"<<endl<<endl;
+	cout<<endl<<left<<setfill('*')<<setw(100)<<"*"<<endl;
 
     /*OFFLINE AND POST PROCESSING SIGNAL TREATMENT*/
     /* cout<<endl<<"MANUAL SIMULATION? [(0) no / (1) yes] --> ";
@@ -762,8 +745,24 @@ int main()
         break;
     }  */
 
-    //requestDataFromL1();
-    readFiles();
 
+
+
+    double dTemp;
+    double pyroPlant_getMinValue {220};
+
+    do
+    {
+        //Simulate call a reading from L1...
+        cout<<left<<setfill('-')<<setw(41)<<"-"<<endl; //REMOVE...!
+        cout<<"To end simulation enter [-1]"<<endl;
+        cout<<"[ENTER SIMULATED VALUE] --> ";
+        cin>>dTemp;
+        cout<<left<<setfill('-')<<setw(41)<<"-"<<endl; //REMOVE...!
+
+        requestDataFromL1(dTemp, pyroPlant_getMinValue);
+
+    } while (dTemp != -1);
+    
     return 0;
 }
